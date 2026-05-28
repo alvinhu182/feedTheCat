@@ -1,0 +1,6 @@
+{
+  "name": "Gatinho Faminto",
+  "description": "Alimente o gatinho triste para vê-lo feliz! Um aplicativo fofo no estilo Kawaii construído com React e Tailwind CSS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
