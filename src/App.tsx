@@ -268,23 +268,55 @@ export default function App() {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
+      
+      // Ensure the audio context is active
+      if (ctx.state === "suspended") {
+        ctx.resume();
+      }
+      
       const now = ctx.currentTime;
       
-      // Low rumble boom
+      // Create a dynamics compressor to make it sound punchy, squeezed and intense!
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-24, now);
+      compressor.knee.setValueAtTime(30, now);
+      compressor.ratio.setValueAtTime(12, now);
+      compressor.attack.setValueAtTime(0.003, now);
+      compressor.release.setValueAtTime(0.25, now);
+      compressor.connect(ctx.destination);
+
+      // --- 1. MASSIVE LOW END BOOM ---
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = "sawtooth";
-      osc1.frequency.setValueAtTime(160, now);
-      osc1.frequency.linearRampToValueAtTime(10, now + 0.8);
-      gain1.gain.setValueAtTime(0.5, now);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      osc1.frequency.setValueAtTime(220, now);
+      osc1.frequency.exponentialRampToValueAtTime(10, now + 1.2);
+      
+      gain1.gain.setValueAtTime(1.0, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+      
       osc1.connect(gain1);
-      gain1.connect(ctx.destination);
+      gain1.connect(compressor);
       osc1.start(now);
-      osc1.stop(now + 0.8);
+      osc1.stop(now + 1.2);
 
-      // White-noise-like simulation
-      const bufferSize = ctx.sampleRate * 0.8;
+      // --- 2. DEEP COMPLEMENTARY SUB BASS ---
+      const subOsc = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      subOsc.type = "sine";
+      subOsc.frequency.setValueAtTime(80, now);
+      subOsc.frequency.linearRampToValueAtTime(20, now + 0.8);
+      
+      subGain.gain.setValueAtTime(1.2, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      
+      subOsc.connect(subGain);
+      subGain.connect(compressor);
+      subOsc.start(now);
+      subOsc.stop(now + 0.8);
+
+      // --- 3. EXPLOSIVE NOISE BURST (Flesh shattering & Gas expansion) ---
+      const bufferSize = ctx.sampleRate * 1.5; // 1.5 seconds of noise
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
@@ -295,32 +327,65 @@ export default function App() {
       
       const noiseFilter = ctx.createBiquadFilter();
       noiseFilter.type = "lowpass";
-      noiseFilter.frequency.setValueAtTime(800, now);
-      noiseFilter.frequency.exponentialRampToValueAtTime(30, now + 0.5);
+      noiseFilter.frequency.setValueAtTime(1500, now);
+      noiseFilter.frequency.exponentialRampToValueAtTime(40, now + 1.0);
 
       const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.6, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      noiseGain.gain.setValueAtTime(1.5, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
 
       noise.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
+      noiseGain.connect(compressor);
       noise.start(now);
-      noise.stop(now + 0.8);
+      noise.stop(now + 1.5);
 
-      // Tragic high pitched "MIAU!" scream
+      // --- 4. TRAGIC HIGH PITCHED SWEEPING "MIAAAUUUUUUU!" SCREECH (Blown up) ---
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(700, now);
-      osc2.frequency.linearRampToValueAtTime(1300, now + 0.12);
-      osc2.frequency.linearRampToValueAtTime(80, now + 0.35);
-      gain2.gain.setValueAtTime(0.35, now);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
+      const filter2 = ctx.createBiquadFilter();
+      osc2.type = "sawtooth";
+      osc2.frequency.setValueAtTime(550, now);
+      // Fast pitch rise then sudden dive to imitate screech
+      osc2.frequency.linearRampToValueAtTime(1400, now + 0.15);
+      osc2.frequency.linearRampToValueAtTime(100, now + 0.55);
+      
+      filter2.type = "bandpass";
+      filter2.frequency.setValueAtTime(1000, now);
+      filter2.frequency.linearRampToValueAtTime(200, now + 0.55);
+      
+      gain2.gain.setValueAtTime(0.4, now);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      
+      osc2.connect(filter2);
+      filter2.connect(gain2);
+      gain2.connect(compressor);
       osc2.start(now);
-      osc2.stop(now + 0.4);
+      osc2.stop(now + 0.6);
+
+      // --- 5. HIGH SIZZLING BLOOD SPATTER / NOISE HISS ---
+      const splatterSize = ctx.sampleRate * 0.4;
+      const splatterBuffer = ctx.createBuffer(1, splatterSize, ctx.sampleRate);
+      const sData = splatterBuffer.getChannelData(0);
+      for (let i = 0; i < splatterSize; i++) {
+        sData[i] = (Math.random() * 2 - 1) * (1 - i / splatterSize);
+      }
+      const splatterNoise = ctx.createBufferSource();
+      splatterNoise.buffer = splatterBuffer;
+      
+      const splatterFilter = ctx.createBiquadFilter();
+      splatterFilter.type = "highpass";
+      splatterFilter.frequency.setValueAtTime(5000, now);
+      
+      const splatterGain = ctx.createGain();
+      splatterGain.gain.setValueAtTime(0.4, now);
+      splatterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      
+      splatterNoise.connect(splatterFilter);
+      splatterFilter.connect(splatterGain);
+      splatterGain.connect(compressor);
+      splatterNoise.start(now);
+      splatterNoise.stop(now + 0.35);
 
     } catch (e) {
       console.log("Audio exploded error:", e);
@@ -502,7 +567,7 @@ export default function App() {
   };
 
   return (
-    <div id="main-panel" className="bg-pastel-grid min-h-screen flex flex-col justify-between items-center text-slate-800 p-4 font-sans antialiased selection:bg-pink-200">
+    <div id="main-panel" className="bg-pastel-grid min-h-screen flex flex-col justify-between items-center text-slate-800 p-3 sm:p-6 font-sans antialiased selection:bg-pink-200">
       
       {/* RED FLASH SCREEN EFFECT */}
       <AnimatePresence>
@@ -518,28 +583,28 @@ export default function App() {
       </AnimatePresence>
       
       {/* HEADER SECTION */}
-      <header className="w-full max-w-xl mx-auto flex justify-between items-center py-4 relative z-50">
-        <div id="header-logo" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-rose-400 flex items-center justify-center border-2 border-slate-900 shadow-sm animate-pulse">
-            <Heart size={16} className="text-white fill-white" />
+      <header className="w-full max-w-xl mx-auto flex justify-between items-center py-2 sm:py-4 relative z-50">
+        <div id="header-logo" className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-rose-400 flex items-center justify-center border-2 border-slate-900 shadow-sm animate-pulse">
+            <Heart size={13} className="text-white fill-white" />
           </div>
-          <span className="font-bold text-lg tracking-wider text-slate-800 flex items-center gap-1">
+          <span className="font-bold text-sm sm:text-lg tracking-wider text-slate-800 flex items-center gap-1">
             GATINHO <span className="text-rose-500">FAMINTO</span> 🐾
           </span>
         </div>
         
         {/* RIGHT CONTROLLERS / COUNTERS */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* COUNTER BADGE */}
           <motion.div
             key={feedCount}
             initial={{ scale: 0.8, rotate: -5 }}
             animate={{ scale: [1, 1.2, 1], rotate: [0, 8, 0] }}
             transition={{ type: "tween", duration: 0.45, ease: "easeInOut" }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-slate-800 bg-amber-100 text-amber-900 text-xs font-black shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] select-none"
+            className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border-2 border-slate-800 bg-amber-100 text-amber-900 text-[10px] sm:text-xs font-black shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] select-none"
             title={`${feedCount} gatinho(s) alimentado(s) com amor`}
           >
-            <Award size={14} className="text-amber-600 fill-amber-300" />
+            <Award size={12} className="text-amber-600 fill-amber-300 sm:size-3.5" />
             <span>{feedCount} {feedCount === 1 ? "ALIMENTADO" : "ALIMENTADOS"}</span>
           </motion.div>
 
@@ -547,17 +612,17 @@ export default function App() {
           <button
             id="sound-toggle"
             onClick={() => setIsMuted(!isMuted)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-slate-800 bg-white hover:bg-rose-50 active:scale-95 transition-all text-xs font-bold shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full border-2 border-slate-800 bg-white hover:bg-rose-50 active:scale-95 transition-all text-[10px] sm:text-xs font-black shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] cursor-pointer"
             title={isMuted ? "Ativar som" : "Desativar som"}
           >
             {isMuted ? (
               <>
-                <VolumeX size={14} className="text-red-500 animate-pulse" />
+                <VolumeX size={12} className="text-red-500 animate-pulse sm:size-3.5" />
                 <span className="text-red-500 hidden sm:inline">MUDO</span>
               </>
             ) : (
               <>
-                <Volume2 size={14} className="text-emerald-600 animate-bounce" />
+                <Volume2 size={12} className="text-emerald-600 animate-bounce sm:size-3.5" />
                 <span className="text-emerald-700 hidden sm:inline">SOM</span>
               </>
             )}
@@ -566,7 +631,7 @@ export default function App() {
       </header>
 
       {/* CORE INTERACTION CARD */}
-      <main className="w-full flex-grow flex items-center justify-center py-4 relative z-40">
+      <main className="w-full flex-grow flex items-center justify-center py-2 sm:py-4 relative z-40">
         <AnimatePresence mode="wait">
           <motion.div
             key={catId}
@@ -575,12 +640,12 @@ export default function App() {
             exit={{ opacity: 0, scale: 0.9, y: -15 }}
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
             id="cat-box-card"
-            className={`w-full max-w-sm border-4 rounded-[32px] p-6 flex flex-col items-center relative overflow-hidden transition-all duration-500 ${isExploded ? "bg-[#250505] border-red-800 shadow-[8px_8px_0px_0px_rgba(127,29,29,1)]" : "bg-white border-slate-800 shadow-[8px_8px_0px_0px_rgba(30,41,59,1)]"}`}
+            className={`w-full max-w-[325px] min-[360px]:max-w-[350px] sm:max-w-sm border-3 sm:border-4 rounded-[24px] sm:rounded-[32px] p-3.5 min-[360px]:p-4 sm:p-6 flex flex-col items-center relative overflow-hidden transition-all duration-500 ${isExploded ? "bg-[#250505] border-red-800 shadow-[5px_5px_0px_0px_rgba(127,29,29,1)] sm:shadow-[8px_8px_0px_0px_rgba(127,29,29,1)]" : "bg-white border-slate-800 shadow-[5px_5px_0px_0px_rgba(30,41,59,1)] sm:shadow-[8px_8px_0px_0px_rgba(30,41,59,1)]"}`}
           >
             {/* Top badge for cat type */}
             <div 
               id="badge-tipo" 
-              className={`mb-4 border-2 rounded-full py-0.5 px-3.5 text-xs font-bold uppercase tracking-wider shadow-sm transition-all duration-300 ${isExploded ? "bg-red-950 text-red-300 border-red-800" : "bg-slate-100 border-slate-800 text-slate-700"}`}
+              className={`mb-3 sm:mb-4 border-2 rounded-full py-0.5 px-3 text-[10px] sm:text-xs font-semibold uppercase tracking-wider shadow-sm transition-all duration-300 ${isExploded ? "bg-red-950 text-red-300 border-red-800" : "bg-slate-100 border-slate-800 text-slate-700"}`}
             >
               {currentCat.typeText || "Analisando..."}
             </div>
@@ -588,39 +653,39 @@ export default function App() {
             {/* COMIC TALK BUBBLE */}
             <div 
               id="talk-bubble" 
-              className={`relative w-full min-h-[76px] flex items-center justify-center mb-6 px-4 py-3 border-3 border-slate-800 rounded-2xl shadow-sm text-center transition-all ${isExploded ? "bg-rose-955 text-red-105 border-red-650" : "bg-[#FCF8E3] text-slate-850"}`}
+              className={`relative w-full min-h-[64px] sm:min-h-[76px] flex items-center justify-center mb-4 sm:mb-6 px-3.5 py-2 sm:px-4 sm:py-3 border-[2.5px] sm:border-3 border-slate-800 rounded-xl sm:rounded-2xl shadow-sm text-center transition-all ${isExploded ? "bg-rose-955 text-red-105 border-red-650" : "bg-[#FCF8E3] text-slate-850"}`}
               style={isExploded ? { backgroundColor: "#450A0A", borderColor: "#EF4444" } : undefined}
             >
               {/* Dialogue Tail */}
               <div 
-                className={`absolute -bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 border-r-3 border-b-3 border-slate-800 rotate-45 transform ${isExploded ? "bg-red-950 border-red-500" : "bg-[#FCF8E3]"}`}
+                className={`absolute -bottom-2.5 sm:-bottom-3 left-1/2 -translate-x-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 border-r-2.5 border-b-2.5 sm:border-r-3 sm:border-b-3 border-slate-800 rotate-45 transform ${isExploded ? "bg-red-950 border-red-500" : "bg-[#FCF8E3]"}`}
                 style={isExploded ? { backgroundColor: "#450A0A", borderColor: "#EF4444" } : undefined}
               />
               
-              <p className="text-sm font-bold leading-relaxed select-none">
+              <div className="text-xs sm:text-sm font-bold leading-relaxed select-none font-sans">
                 {isExploded ? (
                   <span className="text-red-400 inline-flex flex-col gap-0.5 animate-pulse">
-                    <span className="text-red-300 uppercase font-black tracking-widest text-[10px]">⚠️ TRAGÉDIA EXTREMA ⚠️</span>
-                    <span className="text-white text-xs">BUUUUM! Você deu comida demais para {currentCat.name} e ele EXPLODIU! 🙀💥🩸</span>
+                    <span className="text-red-300 uppercase font-black tracking-widest text-[9px] sm:text-[10px]">⚠️ TRAGÉDIA EXTREMA ⚠️</span>
+                    <span className="text-white text-[11px] sm:text-xs">BUUUUM! Você deu comida demais para {currentCat.name} e ele EXPLODIU! 🙀💥🩸</span>
                   </span>
                 ) : isHappy ? (
-                  <span className="text-slate-950 inline-flex flex-col gap-0.5 animate-bounce">
+                  <span className="text-slate-950 inline-flex flex-col gap-0.5 animate-bounce font-sans">
                     <span>{happyThought}</span>
-                    <span className="text-rose-600 text-xs mt-0.5 font-medium">
+                    <span className="text-rose-600 text-[11px] sm:text-xs mt-0.5 font-medium font-sans">
                       Miau! {currentCat.name} adorou! Gatinho feliz! 🥰✨
                     </span>
                   </span>
                 ) : (
                   <span className="text-slate-700">
-                    <strong className="text-rose-500 font-extrabold">{currentCat.name}</strong> está com muita fome e tristinho... que tal dar um pouco de ração?
-                    <span className="block italic text-slate-500 text-xs mt-1.5">"{sadThought}"</span>
+                    <strong className="text-rose-500 font-extrabold">{currentCat.name}</strong> está com fome e triste... ração nela?
+                    <span className="block italic text-slate-500 text-[11px] sm:text-xs mt-1">"{sadThought}"</span>
                   </span>
                 )}
-              </p>
+              </div>
             </div>
 
             {/* THE CSS CAT PORTRAIT CONTAINER */}
-            <div id="canvas-gato" className="relative w-64 h-64 select-none mb-6 flex justify-center items-center">
+            <div id="canvas-gato" className="relative w-52 h-52 min-[360px]:w-56 min-[360px]:h-56 sm:w-64 sm:h-64 select-none mb-4 sm:mb-6 flex justify-center items-center">
               
               {/* SHADOW BASE */}
               {!isExploded && (
@@ -778,7 +843,8 @@ export default function App() {
               })}
 
               {/* VECTOR CAT ASSEMBLY */}
-              <div className="relative w-56 h-56 flex items-center justify-center">
+              <div className="scale-[0.8] min-[360px]:scale-[0.88] sm:scale-100 transition-transform origin-center">
+                <div className="relative w-56 h-56 flex items-center justify-center">
                 {isExploded ? (
                   <div className="flex flex-col items-center justify-center h-full w-full relative">
                     {/* Red explosion blood puddle on the floor */}
@@ -1115,13 +1181,14 @@ export default function App() {
                     </div>
                   </>
                 )}
+                </div>
               </div>
             </div>
 
             {/* FOOD BOWL (POTE DE RAÇÃO) & CAT SWITCHER */}
-            <div id="pote-decor" className="relative w-full flex items-end justify-center gap-3 mt-1 pb-1">
+            <div id="pote-decor" className="relative w-full flex items-end justify-center gap-2 sm:gap-3 mt-1 pb-1">
               {/* Invisible spacer/placeholder on the left on screens to perfectly balance the button on the right */}
-              <div className="w-12 h-12 hidden sm:block pointer-events-none" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 hidden sm:block pointer-events-none" />
 
               <div 
                 id="feed-bowl-click"
@@ -1129,31 +1196,31 @@ export default function App() {
                 className={`group relative flex flex-col items-center select-none transition-transform ${isExploded ? "cursor-not-allowed opacity-40 scale-90" : isFeeding ? "cursor-wait scale-95" : "cursor-pointer hover:scale-105 active:scale-95"}`}
               >
                 {/* Guide badge above the bowl */}
-                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border-2 border-slate-800 bg-white shadow-sm mb-2 transition-transform duration-300 ${isHappy ? "text-slate-500 scale-95 opacity-65" : "text-amber-600 animate-pulse group-hover:bg-amber-50"}`}>
+                <span className={`text-[8px] sm:text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-full border-2 border-slate-800 bg-white shadow-sm mb-1.5 sm:mb-2 transition-transform duration-300 ${isHappy ? "text-slate-500 scale-95 opacity-65" : "text-amber-600 animate-pulse group-hover:bg-amber-50"}`}>
                   {isExploded ? "Gatinho Explodiu... 🥀" : isHappy ? "Alimentado! ❤️" : "Clique para Alimentar! 🐾"}
                 </span>
 
                 {/* THE FOOD BOWL SHAPE - Pure CSS Vector */}
                 <div 
-                  className={`w-36 h-12 bg-rose-400 border-4 border-slate-800 rounded-b-2xl rounded-t-sm relative shadow-md transition-all ${isBowlShaking ? "bowl-shake bg-orange-300" : ""}`}
+                  className={`w-28 h-10 sm:w-36 sm:h-12 bg-rose-400 border-3 sm:border-4 border-slate-800 rounded-b-xl sm:rounded-b-2xl rounded-t-sm relative shadow-md transition-all ${isBowlShaking ? "bowl-shake bg-orange-300" : ""}`}
                 >
                   {/* Bowl inner gloss */}
-                  <div className="absolute top-1 left-2.5 w-28 h-2 bg-white/20 rounded-full" />
+                  <div className="absolute top-0.5 left-1.5 w-24 sm:w-28 h-1.5 sm:h-2 bg-white/20 rounded-full" />
                   
                   {/* Bowl cute branding logo (paw print/heart badge) */}
-                  <div className="absolute inset-x-0 bottom-1 flex justify-center items-center text-slate-800 opacity-70 z-10 select-none">
-                    <Heart size={14} className="fill-slate-800" />
+                  <div className="absolute inset-x-0 bottom-0.5 sm:bottom-1 flex justify-center items-center text-slate-800 opacity-70 z-10 select-none">
+                    <Heart size={10} className="fill-slate-800 sm:size-3.5" />
                   </div>
 
                   {/* FOOD KIBBLE PIECES Inside empty space */}
                   {kibbleLevel > 0 && (
-                    <div className="absolute -top-3 left-1/2 -translateX-1/2 -translate-x-1/2 w-[112px] h-3.5 bg-amber-800 border-3 border-slate-800 rounded-full flex flex-wrap gap-0.5 px-1 py-0.5 overflow-hidden content-center justify-center">
+                    <div className="absolute -top-2.5 sm:-top-3 left-1/2 -translateX-1/2 -translate-x-1/2 w-[86px] sm:w-[112px] h-3 sm:h-3.5 bg-amber-800 border-2 sm:border-3 border-slate-800 rounded-full flex flex-wrap gap-[2px] sm:gap-0.5 px-1 py-0.5 overflow-hidden content-center justify-center">
                       {Array.from({ length: kibbleLevel }).map((_, idx) => (
                         <div 
                           key={idx} 
-                          className="w-2 h-2 bg-amber-950 border border-amber-900 rounded-full shadow-inner shadow-black/30"
+                          className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-amber-950 border border-amber-900 rounded-full shadow-inner shadow-black/30"
                           style={{
-                            transform: `translateY(${Math.sin(idx * 1.5) * 1.5}px) rotate(${idx * 30}deg)`
+                            transform: `translateY(${Math.sin(idx * 1.5) * 1}px) rotate(${idx * 30}deg)`
                           }}
                         />
                       ))}
@@ -1172,12 +1239,12 @@ export default function App() {
                   }
                 }}
                 disabled={isFeeding}
-                className={`flex flex-col items-center justify-center w-12 h-12 rounded-2xl border-4 border-slate-800 bg-sky-100 hover:bg-sky-200 text-slate-800 shadow-[3px_3px_0px_0px_rgba(30,41,59,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all cursor-pointer ${isFeeding ? "opacity-35 cursor-not-allowed" : ""}`}
+                className={`flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl border-3 sm:border-4 border-slate-800 bg-sky-100 hover:bg-sky-200 text-slate-800 shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] sm:shadow-[3px_3px_0px_0px_rgba(30,41,59,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all cursor-pointer ${isFeeding ? "opacity-35 cursor-not-allowed" : ""}`}
                 title="Trocar de gatinho"
                 style={{ marginBottom: "2px" }}
               >
-                <RefreshCw size={16} className={`text-slate-800 font-extrabold ${isFeeding ? "" : "hover:rotate-180 transition-transform duration-500"}`} />
-                <span className="text-[7.5px] font-black uppercase tracking-wider mt-0.5">OUTRO</span>
+                <RefreshCw size={13} className={`text-slate-800 font-extrabold sm:size-4 ${isFeeding ? "" : "hover:rotate-180 transition-transform duration-500"}`} />
+                <span className="text-[6.5px] sm:text-[7.5px] font-black uppercase tracking-wider mt-0.5">OUTRO</span>
               </button>
             </div>
 
